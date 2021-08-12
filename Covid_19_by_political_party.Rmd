@@ -1,0 +1,174 @@
+---
+title: "Your Document Title"
+author: "Document Author"
+date: "`r Sys.Date()`"
+output:
+  prettydoc::html_pretty:
+    theme: architect
+    highlight: github
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rvest)
+library(selectr)
+library(xml2)
+library(XML)
+library(janitor)
+library(data.table)
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(plotly)
+library(forcats)
+
+abbr <- strsplit("AL – Alabama
+AK – Alaska
+AZ – Arizona
+AR – Arkansas
+CA – California
+CO – Colorado
+CT – Connecticut
+DE – Delaware
+FL – Florida
+GA – Georgia
+HI – Hawaii
+ID – Idaho
+IL – Illinois
+IN – Indiana
+IA – Iowa
+KS – Kansas
+KY – Kentucky
+LA – Louisiana
+ME – Maine
+MD – Maryland
+MA – Massachusetts
+MI – Michigan
+MN – Minnesota
+MS – Mississippi
+MO – Missouri
+MT – Montana
+NE – Nebraska
+NV – Nevada
+NH – New Hampshire
+NJ – New Jersey
+NM – New Mexico
+NY – New York
+NC – North Carolina
+ND – North Dakota
+OH – Ohio
+OK – Oklahoma
+OR – Oregon
+PA – Pennsylvania
+RI – Rhode Island
+SC – South Carolina
+SD – South Dakota
+TN – Tennessee
+TX – Texas
+UT – Utah
+VT – Vermont
+VA – Virginia
+WA – Washington
+WV – West Virginia
+WI – Wisconsin
+WY – Wyoming", "\\n") %>%
+  unlist()
+```
+
+
+
+# Covid-19 by State and political party
+   The purpose of this project is to imitate a research article, obtain data from websites using a web scrapper in R, and to create visualizations surrounding based on covid-19 infections and the affiliated party of the state governor. Within this project: basic web scraping techniques were used to pull data from different sources such as wikipedia; in addition, the datasets were joined together using dplyr's inner_join. After processing the data, simple visualization methods were used for a superficial exploration of the data, and a linear regression was used to compare the means of the percent infected by the governing official's political party by state.
+   
+##Loading in Datasets
+```{r}
+url <- "https://simple.wikipedia.org/wiki/List_of_United_States_governors"
+political_party <- read_html(url) %>%
+  html_node("table") %>%
+  html_table(header = T) %>%
+  row_to_names(1) %>%
+  select(!c(2,4,10,11))
+
+
+abbr <- tibble(data = abbr) %>%
+  separate(data, into = c("Abbr", "State"), sep = " – ")
+
+covid <- fread("United_States_COVID-19_Cases_and_Deaths_by_State_over_Time.csv") %>%
+  filter(state %in% abbr$Abbr) %>%
+  mutate(submission_date = as.Date(submission_date, format = "%m/%d/%Y")) %>%
+  group_by(state) %>%
+  filter(submission_date == max(submission_date))
+
+census <- read.csv("csvData.csv") %>%
+  select(!`ï..rank`)
+```
+
+## Visualizations
+```{r fig.align='center'}
+covid_PP <- covid %>%
+  inner_join(abbr, by = c("state" = "Abbr")) %>%
+  inner_join(political_party, by = "State") %>%
+  inner_join(census, by = "State") %>%
+  mutate(perc_cases = tot_cases/Pop2018 * 100,
+         perc_death_by_cases = tot_death/tot_cases * 100,
+         perc_death_by_pop = tot_death/Pop2018 * 100,
+         Party = str_extract(Party, "Republican|Democratic")) %>%
+  select(State, Party, perc_death_by_pop, perc_death_by_cases, perc_cases, tot_cases, tot_death)
+  
+  
+ggplot(covid_PP, aes(x = Party, y = perc_cases, fill = Party)) +
+  geom_boxplot(fill = c("Blue", "Red")) +
+  ylab("Percent Cases") +
+  ggtitle("Boxplot of percent cases by political party")
+```
+
+  Based on the above box plot, it can be noted that there is a difference in the median percent cases of republican and democratic states; however, given the chart itself, there is not clear evidence whether there is a statistical difference between the medians of percent cases for the total population given the affiliated political party of the state leader. It is entirely possible that this difference could be due to a variation assuming the data is representative of the states situation.
+
+```{r fig.align='center'}
+plot_geo(covid_PP, locationmode = 'USA-states') %>%
+  add_trace(
+    z = ~perc_cases, locations = ~state,
+    color = ~perc_cases, colors = "Blues"
+  ) %>%
+  layout(
+    title = "Percent Infected by State",
+    geo = 
+      list(
+      scope = 'usa',
+      projection = list(type = 'albers usa')
+      )
+  ) %>%
+  colorbar(title = "Percent Infected")
+```
+  Above is a state map of the United States and the respective percent of cases.
+
+```{r fig.align='center'}
+ggplotly(ggplot(covid_PP, aes(fct_reorder(State, perc_cases), perc_cases, color = Party)) +
+  geom_point() +
+  geom_hline(yintercept = mean(covid_PP$perc_cases), linetype = "dashed") +
+  scale_colour_manual(values = c("Blue", "Red")) +
+  labs(x = "State", y = "Percent of Population Infected", title = "Scatter plot and mean of Percent cases by state and political party") +
+  
+  coord_flip() +
+  theme_minimal())
+
+```
+Based on the plot above, it is am important question to ask why the state Rhode Island appears to be an outlier when compared to all of the democratic states. Another state which appears to be an outlier is Hawaii but there are some simple explanations as to why it was able to effectively reduce the transmission of covid cases and that is because it is not apart of the 48 contiguous states and that it enacted strict lockdown measures at the beginning of covid-19. Alaska can the US territory of Puerto Rico can directly be compared against hawaii as they also are not contiguous states/territories. 
+
+## Statistical Test
+ Assuming that the data is representative of the true situation of each state, based on the exploratory data analysis it would be important to test if there were a difference between the mean percent of cases between republican and democratic led states or if there is no difference at all.
+ The hypothesis test would be as state:
+ $$H_0: \mu_R - \mu_D = 0$$
+ $$H_a: \mu_R - \mu_D \ne 0$$
+ 
+```{r}
+var.test(perc_cases ~ Party, data = covid_PP)
+
+lm(covid_PP$perc_cases ~ covid_PP$Party, alternative = "two.sided", paired = F, var.equal = FALSE) %>%
+  summary()
+
+t.test(perc_cases ~ Party, data = covid_PP, var.equal = TRUE)
+
+```
+The statistical test above shows that there is a difference (assuming the data is representative) with a p-value of 0.0304. Although there is a statistical difference between the means, it is important to state that this data is observational and does not mean causation. 
