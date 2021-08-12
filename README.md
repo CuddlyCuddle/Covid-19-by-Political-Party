@@ -1,0 +1,3 @@
+# Covid-19-by-Political-Party
+   The purpose of this project is to imitate a research article, obtain data from websites using a web scrapper in R, and to create visualizations surrounding based on covid-19 infections and the affiliated party of the state governor. Within this project: basic web scraping techniques were used to pull data from different sources such as wikipedia; in addition, the datasets were joined together using dplyr's inner_join. After processing the data, simple visualization methods were used for a superficial exploration of the data, and a linear regression was used to compare the means of the percent infected by the governing official's political party by state.
+   
