@@ -1,6 +1,5 @@
 ---
-title: "Your Document Title"
-author: "Document Author"
+title: "Covid-19 by Political Party"
 date: "`r Sys.Date()`"
 output:
   prettydoc::html_pretty:
