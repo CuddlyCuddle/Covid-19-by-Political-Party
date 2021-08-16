@@ -93,13 +93,13 @@ political_party <- read_html(url) %>%
 abbr <- tibble(data = abbr) %>%
   separate(data, into = c("Abbr", "State"), sep = " – ")
 
-covid <- fread("United_States_COVID-19_Cases_and_Deaths_by_State_over_Time.csv") %>%
+covid <- fread("Data/United_States_COVID-19_Cases_and_Deaths_by_State_over_Time.csv") %>%
   filter(state %in% abbr$Abbr) %>%
   mutate(submission_date = as.Date(submission_date, format = "%m/%d/%Y")) %>%
   group_by(state) %>%
   filter(submission_date == max(submission_date))
 
-census <- read.csv("csvData.csv") %>%
+census <- read.csv("Data/csvData.csv") %>%
   select(!`ï..rank`)
 ```
 
